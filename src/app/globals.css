@@ -1,0 +1,69 @@
+@import "tailwindcss";
+
+/* ============================================================
+   Design Tokens — 모면 (노란 계열 브랜드, TDS 스타일)
+   ============================================================ */
+:root {
+  /* Brand */
+  --brand-50:  #FFFBEB;
+  --brand-100: #FEF3C7;
+  --brand-200: #FDE68A;
+  --brand-300: #FCD34D;
+  --brand-400: #FBBF24;
+  --brand-500: #F59E0B;
+  --brand-600: #D97706;
+  --brand-700: #B45309;
+
+  /* Surface */
+  --bg-base:    #FFFFFF;
+  --bg-subtle:  #F9FAFB;
+  --bg-card:    #FFFFFF;
+  --bg-overlay: rgba(0, 0, 0, 0.04);
+
+  /* Text */
+  --text-primary:   #111827;
+  --text-secondary: #4B5563;
+  --text-tertiary:  #9CA3AF;
+
+  /* Border */
+  --border-default: #E5E7EB;
+
+  /* Status */
+  --success: #10B981;
+  --error:   #EF4444;
+
+  /* Shadow (최소화) */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.dark {
+  --bg-base:    #0F0F10;
+  --bg-subtle:  #1A1A1C;
+  --bg-card:    #1F1F22;
+  --bg-overlay: rgba(255, 255, 255, 0.06);
+
+  --text-primary:   #F9FAFB;
+  --text-secondary: #9CA3AF;
+  --text-tertiary:  #6B7280;
+
+  --border-default: #2D2D31;
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 2px 8px rgba(0, 0, 0, 0.4);
+}
+
+/* ── Base ── */
+body {
+  background-color: var(--bg-base);
+  color: var(--text-primary);
+  font-family: 'Pretendard', -apple-system, 'Apple SD Gothic Neo', sans-serif;
+  transition: background-color 0.18s ease, color 0.18s ease;
+}
+
+html { scroll-behavior: smooth; }
+
+/* ── Scrollbar (subtle) ── */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border-default); border-radius: 9999px; }
