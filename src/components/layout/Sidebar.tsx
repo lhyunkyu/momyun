@@ -1,13 +1,15 @@
 'use client'
 
 import Link from 'next/link'
+import Image from 'next/image'
 import { usePathname } from 'next/navigation'
 import { useTheme } from 'next-themes'
 import {
   Zap, MessageSquare, FolderOpen, TrendingUp,
-  Brain, Sun, Moon, Settings, User,
+  Brain, Sun, Moon, Settings, LogOut, User,
 } from 'lucide-react'
 import { cn } from '@/lib/cn'
+import { useAuth } from '@/context/AuthContext'
 
 const NAV_ITEMS = [
   { label: '면접 시작',   href: '/interview',  icon: MessageSquare },
@@ -17,9 +19,10 @@ const NAV_ITEMS = [
 ]
 
 export function Sidebar() {
-  const pathname = usePathname()
-  const { theme, setTheme } = useTheme()
-  const isDark = theme === 'dark'
+  const pathname              = usePathname()
+  const { theme, setTheme }  = useTheme()
+  const { user, logout }     = useAuth()
+  const isDark               = theme === 'dark'
 
   return (
     <aside className="fixed left-0 top-0 h-screen w-[220px] flex flex-col border-r border-[var(--border-default)] bg-[var(--bg-subtle)] z-40">
@@ -75,15 +78,36 @@ export function Sidebar() {
           <Settings size={16} />
           설정
         </Link>
+        <button
+          onClick={logout}
+          className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-[var(--text-secondary)] hover:bg-black/5 dark:hover:bg-white/10 hover:text-[var(--text-primary)] transition-all w-full"
+        >
+          <LogOut size={16} />
+          로그아웃
+        </button>
 
         {/* User Profile */}
         <div className="mt-2 pt-3 border-t border-[var(--border-default)] flex items-center gap-2.5 px-2">
-          <div className="w-8 h-8 rounded-full bg-amber-100 dark:bg-amber-500/20 flex items-center justify-center text-amber-600 dark:text-amber-400 shrink-0">
-            <User size={15} />
+          <div className="w-8 h-8 rounded-full bg-amber-100 dark:bg-amber-500/20 shrink-0 overflow-hidden flex items-center justify-center text-amber-600 dark:text-amber-400">
+            {user?.photoURL ? (
+              <Image
+                src={user.photoURL}
+                alt="프로필"
+                width={32}
+                height={32}
+                className="w-full h-full object-cover"
+              />
+            ) : (
+              <User size={15} />
+            )}
           </div>
           <div className="min-w-0">
-            <div className="text-[13px] font-semibold truncate">이현규</div>
-            <div className="text-[11px] text-[var(--text-tertiary)] truncate">프론트엔드 · 신입</div>
+            <div className="text-[13px] font-semibold truncate">
+              {user?.displayName ?? '사용자'}
+            </div>
+            <div className="text-[11px] text-[var(--text-tertiary)] truncate">
+              {user?.email ?? ''}
+            </div>
           </div>
         </div>
       </div>
