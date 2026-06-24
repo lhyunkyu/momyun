@@ -5,12 +5,18 @@ import { Send, Loader2, RotateCcw } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { cn } from '@/lib/cn'
 import { useAuth } from '@/context/AuthContext'
-import { saveSession } from '@/lib/firestore'
+import {
+  createDraftSession,
+  updateSessionMessages,
+  finalizeSession,
+  EvaluationResult,
+} from '@/lib/firestore'
+import { InterviewResultSection } from '@/components/sections/InterviewResultSection'
 
-const TRACKS      = [{ v: 'frontend', l: '프론트엔드' }, { v: 'backend', l: '백엔드' }, { v: 'fullstack', l: '풀스택' }, { v: 'cs', l: 'CS 기초' }]
-const EXPERIENCES = [{ v: 'intern', l: '인턴/신입' }, { v: 'junior', l: '주니어' }, { v: 'mid', l: '미드레벨' }, { v: 'senior', l: '시니어' }]
-const DIFFICULTIES= [{ v: 'easy', l: '쉬움' }, { v: 'medium', l: '보통' }, { v: 'hard', l: '어려움' }]
-const TYPES       = [{ v: 'technical', l: '기술 면접' }, { v: 'behavioral', l: '인성 면접' }, { v: 'mixed', l: '혼합' }]
+const TRACKS       = [{ v: 'frontend', l: '프론트엔드' }, { v: 'backend', l: '백엔드' }, { v: 'fullstack', l: '풀스택' }, { v: 'cs', l: 'CS 기초' }]
+const EXPERIENCES  = [{ v: 'intern', l: '인턴/신입' }, { v: 'junior', l: '주니어' }, { v: 'mid', l: '미드레벨' }, { v: 'senior', l: '시니어' }]
+const DIFFICULTIES = [{ v: 'easy', l: '쉬움' }, { v: 'medium', l: '보통' }, { v: 'hard', l: '어려움' }]
+const TYPES        = [{ v: 'technical', l: '기술 면접' }, { v: 'behavioral', l: '인성 면접' }, { v: 'mixed', l: '혼합' }]
 
 interface Message { role: 'user' | 'assistant'; content: string }
 interface Config {
@@ -19,10 +25,7 @@ interface Config {
 }
 
 function ChipGroup({ label, options, value, onChange }: {
-  label: string
-  options: { v: string; l: string }[]
-  value: string
-  onChange: (v: string) => void
+  label: string; options: { v: string; l: string }[]; value: string; onChange: (v: string) => void
 }) {
   return (
     <div>
@@ -49,16 +52,21 @@ export function InterviewSetupSection() {
     track: 'frontend', experience: 'intern',
     difficulty: 'medium', type: 'technical', questionCount: 5,
   })
-  const [phase, setPhase]         = useState<'setup' | 'chat' | 'done'>('setup')
-  const [messages, setMessages]   = useState<Message[]>([])
-  const [input, setInput]         = useState('')
-  const [streaming, setStreaming] = useState(false)
-  const [startTime, setStartTime] = useState(0)
+  const [phase, setPhase]           = useState<'setup' | 'chat' | 'evaluating' | 'result'>('setup')
+  const [messages, setMessages]     = useState<Message[]>([])
+  const [input, setInput]           = useState('')
+  const [streaming, setStreaming]   = useState(false)
+  const [initializing, setInit]     = useState(false)
+  const [sessionId, setSessionId]   = useState<string | null>(null)
+  const [startTime, setStartTime]   = useState(0)
+  const [evaluation, setEvaluation] = useState<EvaluationResult | null>(null)
+  const [duration, setDuration]     = useState(0)
   const bottomRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [messages])
 
-  const sendToAI = async (history: Message[], cfg: Config) => {
+  /* AI 스트리밍 호출 */
+  const sendToAI = async (history: Message[], cfg: Config, sid: string) => {
     setStreaming(true)
     const res = await fetch('/api/interview', {
       method: 'POST',
@@ -86,37 +94,77 @@ export function InterviewSetupSection() {
 
     setStreaming(false)
 
-    if (text.includes('면접 종합 평가')) {
-      const match = text.match(/총점:\s*(\d+)\/100/)
-      const score = match ? parseInt(match[1]) : null
-      setPhase('done')
-      if (user) {
-        await saveSession(user.uid, {
-          ...cfg, score,
-          duration: Math.round((Date.now() - startTime) / 60000),
-          messages: [...history, { role: 'assistant', content: text }],
-        })
-      }
+    const finalMessages = [...history, { role: 'assistant' as const, content: text }]
+
+    // 중간 자동저장
+    if (user && sid) {
+      await updateSessionMessages(user.uid, sid, finalMessages)
+    }
+
+    // 면접 종료 감지
+    if (text.includes('면접이 모두 끝났습니다')) {
+      const mins = Math.round((Date.now() - startTime) / 60000)
+      setDuration(mins)
+      setPhase('evaluating')
+      await runEvaluation(finalMessages, cfg, sid, mins)
     }
   }
 
-  const startInterview = async () => {
-    setPhase('chat')
-    setStartTime(Date.now())
-    await sendToAI([], config)
+  /* 결과 평가 API 호출 */
+  const runEvaluation = async (
+    msgs: Message[], cfg: Config, sid: string, mins: number
+  ) => {
+    const res  = await fetch('/api/interview/evaluate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ messages: msgs, config: cfg }),
+    })
+    const data: EvaluationResult = await res.json()
+    setEvaluation(data)
+
+    if (user && sid) {
+      await finalizeSession(user.uid, sid, {
+        score: data.score, duration: mins,
+        evaluation: data, messages: msgs,
+      })
+    }
+    setPhase('result')
   }
 
+  /* 면접 시작 */
+  const startInterview = async () => {
+    setInit(true)
+    let sid = ''
+    if (user) {
+      try {
+        sid = await createDraftSession(user.uid, config)
+        setSessionId(sid)
+      } catch (e) {
+        console.warn('Firestore draft 생성 실패:', e)
+      }
+    }
+    setInit(false)
+    setStartTime(Date.now())
+    setPhase('chat')
+    await sendToAI([], config, sid)
+  }
+
+  /* 답변 전송 */
   const submit = async () => {
     const text = input.trim()
-    if (!text || streaming) return
+    if (!text || streaming || !sessionId) return
     const next: Message[] = [...messages, { role: 'user', content: text }]
     setMessages(next)
     setInput('')
-    await sendToAI(next, config)
+    await sendToAI(next, config, sessionId)
   }
 
-  const reset = () => { setPhase('setup'); setMessages([]); setInput('') }
+  const reset = () => {
+    setPhase('setup'); setMessages([]); setInput('')
+    setSessionId(null); setEvaluation(null)
+  }
 
+  /* ── 설정 화면 ── */
   if (phase === 'setup') return (
     <div className="p-8 max-w-2xl mx-auto">
       <h1 className="text-2xl font-extrabold mb-1">면접 시작</h1>
@@ -128,16 +176,33 @@ export function InterviewSetupSection() {
         <ChipGroup label="면접 유형" options={TYPES}         value={config.type}       onChange={(v) => setConfig((c) => ({ ...c, type: v }))} />
         <div>
           <p className="text-xs font-semibold text-[var(--text-tertiary)] mb-2">질문 수: {config.questionCount}개</p>
-          <input type="range" min={3} max={10} value={config.questionCount}
+          <input type="range" min={3} max={20} value={config.questionCount}
             onChange={(e) => setConfig((c) => ({ ...c, questionCount: Number(e.target.value) }))}
             className="w-full accent-amber-500"
           />
         </div>
       </div>
-      <Button className="mt-6 w-full" size="lg" onClick={startInterview}>면접 시작하기</Button>
+      <Button className="mt-6 w-full" size="lg" onClick={startInterview} disabled={initializing}>
+        {initializing ? <><Loader2 size={18} className="animate-spin" /> 준비 중...</> : '면접 시작하기'}
+      </Button>
     </div>
   )
 
+  /* ── 결과 분석 중 ── */
+  if (phase === 'evaluating') return (
+    <div className="flex flex-col items-center justify-center h-screen gap-4">
+      <Loader2 size={36} className="animate-spin text-amber-500" />
+      <p className="font-semibold">결과를 분석하고 있어요...</p>
+      <p className="text-sm text-[var(--text-secondary)]">AI가 전체 면접을 검토 중입니다. 잠시만 기다려주세요.</p>
+    </div>
+  )
+
+  /* ── 결과 화면 ── */
+  if (phase === 'result' && evaluation) return (
+    <InterviewResultSection evaluation={evaluation} duration={duration} onRestart={reset} />
+  )
+
+  /* ── 채팅 화면 ── */
   return (
     <div className="flex flex-col h-screen">
       <div className="px-6 py-4 border-b border-[var(--border-default)] flex items-center justify-between shrink-0">
@@ -169,26 +234,19 @@ export function InterviewSetupSection() {
       </div>
 
       <div className="px-6 py-4 border-t border-[var(--border-default)] shrink-0">
-        {phase === 'done' ? (
-          <div className="flex items-center gap-3">
-            <p className="text-sm text-[var(--text-secondary)] flex-1">면접 완료! 결과가 레포지토리에 저장됐어요.</p>
-            <Button variant="secondary" onClick={reset}>새 면접 시작</Button>
-          </div>
-        ) : (
-          <div className="flex gap-2">
-            <textarea
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submit() } }}
-              placeholder="답변 입력... (Enter: 전송 / Shift+Enter: 줄바꿈)"
-              rows={2} disabled={streaming}
-              className="flex-1 resize-none rounded-xl border border-[var(--border-default)] bg-[var(--bg-surface)] px-4 py-3 text-sm outline-none focus:border-amber-400 disabled:opacity-50 transition-colors"
-            />
-            <Button size="icon" onClick={submit} disabled={streaming || !input.trim()}>
-              {streaming ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
-            </Button>
-          </div>
-        )}
+        <div className="flex gap-2">
+          <textarea
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submit() } }}
+            placeholder="답변 입력... (Enter: 전송 / Shift+Enter: 줄바꿈)"
+            rows={2} disabled={streaming}
+            className="flex-1 resize-none rounded-xl border border-[var(--border-default)] bg-[var(--bg-surface)] px-4 py-3 text-sm outline-none focus:border-amber-400 disabled:opacity-50 transition-colors"
+          />
+          <Button size="icon" onClick={submit} disabled={streaming || !input.trim()}>
+            {streaming ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
+          </Button>
+        </div>
       </div>
     </div>
   )
