@@ -4,6 +4,7 @@ import {
   getDocs,
   getDoc,
   updateDoc,
+  deleteDoc,
   doc,
   query,
   orderBy,
@@ -85,6 +86,13 @@ export async function getSession(userId: string, sessionId: string): Promise<Int
   const ref  = doc(db, 'users', userId, 'sessions', sessionId)
   const snap = await getDoc(ref)
   return snap.exists() ? ({ id: snap.id, ...snap.data() } as InterviewRecord) : null
+}
+
+/** 유저의 모든 세션 삭제 */
+export async function deleteAllSessions(userId: string) {
+  const ref  = collection(db, 'users', userId, 'sessions')
+  const snap = await getDocs(ref)
+  await Promise.all(snap.docs.map((d) => deleteDoc(d.ref)))
 }
 
 /** 전체 세션 목록 조회 (done만) */

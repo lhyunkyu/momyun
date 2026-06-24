@@ -12,6 +12,8 @@ import {
   EvaluationResult,
 } from '@/lib/firestore'
 import { InterviewResultSection } from '@/components/sections/InterviewResultSection'
+import { FOLLOW_UP_KEY } from '@/components/sections/SettingsSection'
+import { useSessions } from '@/context/SessionsContext'
 
 const TRACKS       = [{ v: 'frontend', l: '프론트엔드' }, { v: 'backend', l: '백엔드' }, { v: 'fullstack', l: '풀스택' }, { v: 'cs', l: 'CS 기초' }]
 const EXPERIENCES  = [{ v: 'intern', l: '인턴/신입' }, { v: 'junior', l: '주니어' }, { v: 'mid', l: '미드레벨' }, { v: 'senior', l: '시니어' }]
@@ -21,7 +23,7 @@ const TYPES        = [{ v: 'technical', l: '기술 면접' }, { v: 'behavioral',
 interface Message { role: 'user' | 'assistant'; content: string }
 interface Config {
   track: string; experience: string; difficulty: string
-  type: string;  questionCount: number
+  type: string;  questionCount: number; followUp: boolean
 }
 
 function ChipGroup({ label, options, value, onChange }: {
@@ -48,16 +50,23 @@ function ChipGroup({ label, options, value, onChange }: {
 
 export function InterviewSetupSection() {
   const { user } = useAuth()
+  const { refresh } = useSessions()
   const [config, setConfig] = useState<Config>({
     track: 'frontend', experience: 'intern',
-    difficulty: 'medium', type: 'technical', questionCount: 5,
+    difficulty: 'medium', type: 'technical', questionCount: 5, followUp: true,
   })
+
+  useEffect(() => {
+    const stored = localStorage.getItem(FOLLOW_UP_KEY)
+    if (stored !== null) setConfig((c) => ({ ...c, followUp: stored === 'true' }))
+  }, [])
   const [phase, setPhase]           = useState<'setup' | 'chat' | 'evaluating' | 'result'>('setup')
   const [messages, setMessages]     = useState<Message[]>([])
   const [input, setInput]           = useState('')
   const [streaming, setStreaming]   = useState(false)
   const [initializing, setInit]     = useState(false)
   const [sessionId, setSessionId]   = useState<string | null>(null)
+  const sessionIdRef                = useRef<string>('')   // sid 최신값 동기 추적
   const [startTime, setStartTime]   = useState(0)
   const [evaluation, setEvaluation] = useState<EvaluationResult | null>(null)
   const [duration, setDuration]     = useState(0)
@@ -106,7 +115,7 @@ export function InterviewSetupSection() {
       const mins = Math.round((Date.now() - startTime) / 60000)
       setDuration(mins)
       setPhase('evaluating')
-      await runEvaluation(finalMessages, cfg, sid, mins)
+      await runEvaluation(finalMessages, cfg, sessionIdRef.current, mins)
     }
   }
 
@@ -114,54 +123,74 @@ export function InterviewSetupSection() {
   const runEvaluation = async (
     msgs: Message[], cfg: Config, sid: string, mins: number
   ) => {
-    const res  = await fetch('/api/interview/evaluate', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ messages: msgs, config: cfg }),
-    })
-    const data: EvaluationResult = await res.json()
-    setEvaluation(data)
+    let data: EvaluationResult | null = null
+
+    try {
+      const res = await fetch('/api/interview/evaluate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ messages: msgs, config: cfg }),
+      })
+      if (!res.ok) throw new Error(`evaluate HTTP ${res.status}`)
+      data = await res.json()
+    } catch (e) {
+      console.error('[runEvaluation] 평가 실패:', e)
+    }
+
+    // 평가 실패해도 세션은 저장 (score null로)
+    const evalData = data ?? {
+      score: null, attitude: '평가를 불러오지 못했어요.',
+      strengths: [], questionReviews: [], improvements: [],
+      overall: '평가 중 오류가 발생했습니다. 면접 기록은 저장되었어요.',
+    } as unknown as EvaluationResult
+
+    setEvaluation(evalData)
 
     if (user && sid) {
-      await finalizeSession(user.uid, sid, {
-        score: data.score, duration: mins,
-        evaluation: data, messages: msgs,
-      })
+      try {
+        await finalizeSession(user.uid, sid, {
+          score: (evalData as EvaluationResult).score ?? null,
+          duration: mins,
+          evaluation: evalData,
+          messages: msgs,
+        })
+        refresh()
+      } catch (e) {
+        console.error('[runEvaluation] Firestore 저장 실패:', e)
+      }
     }
     setPhase('result')
   }
 
   /* 면접 시작 */
-  const startInterview = async () => {
-    setInit(true)
-    let sid = ''
-    if (user) {
-      try {
-        sid = await createDraftSession(user.uid, config)
-        setSessionId(sid)
-      } catch (e) {
-        console.warn('Firestore draft 생성 실패:', e)
-      }
-    }
-    setInit(false)
+  const startInterview = () => {
     setStartTime(Date.now())
     setPhase('chat')
-    await sendToAI([], config, sid)
+
+    // AI 즉시 시작
+    sendToAI([], config, '')
+
+    // Firestore 백그라운드 생성 → ref + state 동시 업데이트
+    if (user) {
+      createDraftSession(user.uid, config)
+        .then((sid) => { sessionIdRef.current = sid; setSessionId(sid) })
+        .catch((e) => console.warn('Firestore draft 생성 실패:', e))
+    }
   }
 
   /* 답변 전송 */
   const submit = async () => {
     const text = input.trim()
-    if (!text || streaming || !sessionId) return
+    if (!text || streaming) return
     const next: Message[] = [...messages, { role: 'user', content: text }]
     setMessages(next)
     setInput('')
-    await sendToAI(next, config, sessionId)
+    await sendToAI(next, config, sessionId ?? '')
   }
 
   const reset = () => {
     setPhase('setup'); setMessages([]); setInput('')
-    setSessionId(null); setEvaluation(null)
+    setSessionId(null); sessionIdRef.current = ''; setEvaluation(null)
   }
 
   /* ── 설정 화면 ── */
@@ -182,8 +211,8 @@ export function InterviewSetupSection() {
           />
         </div>
       </div>
-      <Button className="mt-6 w-full" size="lg" onClick={startInterview} disabled={initializing}>
-        {initializing ? <><Loader2 size={18} className="animate-spin" /> 준비 중...</> : '면접 시작하기'}
+      <Button className="mt-6 w-full" size="lg" onClick={startInterview}>
+        면접 시작하기
       </Button>
     </div>
   )

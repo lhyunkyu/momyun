@@ -39,20 +39,25 @@ ${conversation}
   "overall": "총평 (3-4문장, 구체적으로)"
 }`
 
-  const response = await client.messages.create({
-    model: 'claude-sonnet-4-6',
-    max_tokens: 2048,
-    messages: [{ role: 'user', content: prompt }],
-  })
+  try {
+    const response = await client.messages.create({
+      model: 'claude-sonnet-4-6',
+      max_tokens: 4096,
+      messages: [{ role: 'user', content: prompt }],
+    })
 
-  const raw = response.content[0].type === 'text' ? response.content[0].text : ''
+    const raw = response.content[0].type === 'text' ? response.content[0].text : ''
 
-  // JSON 파싱
-  const jsonMatch = raw.match(/\{[\s\S]*\}/)
-  if (!jsonMatch) {
-    return NextResponse.json({ error: 'parse_failed' }, { status: 500 })
+    const jsonMatch = raw.match(/\{[\s\S]*\}/)
+    if (!jsonMatch) {
+      console.error('[evaluate] JSON 파싱 실패. raw:', raw.slice(0, 300))
+      return NextResponse.json({ error: 'parse_failed' }, { status: 500 })
+    }
+
+    const result = JSON.parse(jsonMatch[0])
+    return NextResponse.json(result)
+  } catch (e) {
+    console.error('[evaluate] 오류:', e)
+    return NextResponse.json({ error: String(e) }, { status: 500 })
   }
-
-  const result = JSON.parse(jsonMatch[0])
-  return NextResponse.json(result)
 }

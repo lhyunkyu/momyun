@@ -1,9 +1,9 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Search, Loader2 } from 'lucide-react'
-import { useAuth } from '@/context/AuthContext'
-import { getSessions, InterviewRecord } from '@/lib/firestore'
+import { Search, Loader2, RefreshCw } from 'lucide-react'
+import { useSessions } from '@/context/SessionsContext'
+import { InterviewRecord } from '@/lib/firestore'
 import { Timestamp } from 'firebase/firestore'
 
 const TRACK_LABEL: Record<string, string> = {
@@ -20,26 +20,22 @@ function formatDate(ts: Timestamp | null) {
 }
 
 export function RepositorySection() {
-  const { user } = useAuth()
-  const [records, setRecords] = useState<InterviewRecord[]>([])
-  const [loading, setLoading] = useState(true)
+  const { sessions, loading, refresh } = useSessions()
   const [search, setSearch]   = useState('')
 
-  useEffect(() => {
-    if (!user) return
-    getSessions(user.uid).then((data) => {
-      setRecords(data)
-      setLoading(false)
-    })
-  }, [user])
-
-  const filtered = records.filter((r) =>
+  const filtered = sessions.filter((r) =>
     TRACK_LABEL[r.track]?.includes(search) || r.difficulty.includes(search)
   )
 
   return (
     <div className="p-8">
-      <h1 className="text-2xl font-extrabold mb-1">레포지토리</h1>
+      <div className="flex items-start justify-between mb-1">
+        <h1 className="text-2xl font-extrabold">레포지토리</h1>
+        <button onClick={refresh} disabled={loading}
+          className="flex items-center gap-1.5 text-xs text-[var(--text-secondary)] hover:text-[var(--text-primary)] disabled:opacity-40 transition-colors">
+          <RefreshCw size={13} className={loading ? 'animate-spin' : ''} /> 새로고침
+        </button>
+      </div>
       <p className="text-[var(--text-secondary)] text-sm mb-6">지금까지 진행한 면접 기록을 확인하세요.</p>
 
       <div className="relative mb-4 max-w-sm">
@@ -57,7 +53,7 @@ export function RepositorySection() {
         </div>
       ) : filtered.length === 0 ? (
         <div className="py-16 text-center text-[var(--text-tertiary)] text-sm">
-          {records.length === 0 ? '아직 면접 기록이 없어요. 첫 면접을 시작해보세요!' : '검색 결과가 없어요.'}
+          {sessions.length === 0 ? '아직 면접 기록이 없어요. 첫 면접을 시작해보세요!' : '검색 결과가 없어요.'}
         </div>
       ) : (
         <div className="rounded-2xl border border-[var(--border-default)] overflow-hidden">

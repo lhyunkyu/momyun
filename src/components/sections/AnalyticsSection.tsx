@@ -1,154 +1,184 @@
-import { Progress } from '@/components/ui/Progress'
+'use client'
 
-const RADAR_CATEGORIES = [
-  { label: 'React/JS',  score: 88, x: 145, y: 42,  dotX: 150, dotY: 62 },
-  { label: '알고리즘', score: 92, x: 224, y: 96,  dotX: 210, dotY: 100, anchor: 'start' },
-  { label: 'DB',        score: 71, x: 200, y: 190, dotX: 190, dotY: 168 },
-  { label: '네트워크', score: 79, x: 100, y: 190, dotX: 110, dotY: 168 },
-  { label: '시스템설계',score: 85, x: 54,  y: 96,  dotX: 91,  dotY: 105, anchor: 'end' },
-]
+import { useSessions } from '@/context/SessionsContext'
+import { InterviewRecord } from '@/lib/firestore'
+import { Loader2, RefreshCw } from 'lucide-react'
 
-const WEEK_BARS = [
-  { day: '월', height: 32, opacity: 'bg-amber-200' },
-  { day: '화', height: 48, opacity: 'bg-amber-400' },
-  { day: '수', height: 24, opacity: 'bg-amber-200' },
-  { day: '목', height: 56, opacity: 'bg-amber-500' },
-  { day: '금', height: 40, opacity: 'bg-amber-300' },
-  { day: '토', height: 16, opacity: 'bg-amber-100' },
-  { day: '일', height: 8,  opacity: 'bg-black/5 dark:bg-white/10 border border-[var(--border-default)]' },
-]
-
-function scoreBarColor(score: number) {
-  if (score >= 90) return 'bg-emerald-500'
-  if (score >= 75) return 'bg-amber-500'
-  return 'bg-amber-400'
+const TRACK_LABEL: Record<string, string> = {
+  frontend: '프론트엔드', backend: '백엔드', fullstack: '풀스택', cs: 'CS 기초',
 }
 
-function RadarChart() {
-  return (
-    <div className="border border-[var(--border-default)] rounded-2xl bg-[var(--bg-card)] p-6">
-      <div className="text-[15px] font-semibold mb-1">역량 레이더 차트</div>
-      <div className="text-[13px] text-[var(--text-tertiary)] mb-5">이번 달 기준</div>
-
-      <div className="h-[200px]">
-        <svg viewBox="0 0 300 210" className="w-full h-full">
-          {/* Grid */}
-          <polygon points="150,50 217,97 197,175 103,175 83,97" fill="none" stroke="var(--border-default)" strokeWidth="1" />
-          <polygon points="150,80 199,116 183,170 117,170 101,116" fill="none" stroke="var(--border-default)" strokeWidth="1" />
-          <polygon points="150,110 181,135 169,165 131,165 119,135" fill="none" stroke="var(--border-default)" strokeWidth="1" />
-          {/* Axes */}
-          {[[150,130,150,50],[150,130,217,97],[150,130,197,175],[150,130,103,175],[150,130,83,97]].map(([x1,y1,x2,y2], i) => (
-            <line key={i} x1={x1} y1={y1} x2={x2} y2={y2} stroke="var(--border-default)" strokeWidth="1" />
-          ))}
-          {/* Data fill */}
-          <polygon
-            points="150,62 210,100 190,168 110,168 91,105"
-            fill="rgba(245,158,11,0.18)" stroke="#F59E0B" strokeWidth="2"
-          />
-          {/* Dots */}
-          {RADAR_CATEGORIES.map(({ dotX, dotY, label }) => (
-            <circle key={label} cx={dotX} cy={dotY} r="4" fill="#F59E0B" />
-          ))}
-          {/* Labels */}
-          {RADAR_CATEGORIES.map(({ label, x, y, anchor = 'middle' }) => (
-            <text key={label} x={x} y={y} textAnchor={anchor as 'middle' | 'start' | 'end'} fontSize="11" fill="var(--text-secondary)" fontFamily="sans-serif">
-              {label}
-            </text>
-          ))}
-        </svg>
-      </div>
-
-      <div className="flex flex-col gap-2 mt-4">
-        {RADAR_CATEGORIES.map(({ label, score }) => (
-          <div key={label} className="flex justify-between items-center">
-            <span className="text-[13px] text-[var(--text-secondary)]">{label}</span>
-            <div className="flex items-center gap-2">
-              <Progress value={score} color={scoreBarColor(score)} className="w-24" />
-              <span className={`text-[12px] font-semibold min-w-[28px] text-right ${scoreBarColor(score).replace('bg-', 'text-')}`}>{score}</span>
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  )
+function avg(arr: number[]) {
+  return arr.length ? Math.round(arr.reduce((a, b) => a + b, 0) / arr.length) : 0
 }
 
-function GrowthChart() {
-  return (
-    <div className="border border-[var(--border-default)] rounded-2xl bg-[var(--bg-card)] p-6">
-      <div className="text-[15px] font-semibold mb-1">점수 성장 추이</div>
-      <div className="text-[13px] text-[var(--text-tertiary)] mb-5">최근 14일</div>
-
-      <div className="h-[140px]">
-        <svg viewBox="0 0 440 140" className="w-full h-full">
-          <defs>
-            <linearGradient id="lineGrad" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#F59E0B" stopOpacity="0.3" />
-              <stop offset="100%" stopColor="#F59E0B" stopOpacity="0.02" />
-            </linearGradient>
-          </defs>
-          {[20, 55, 90, 115].map((y) => (
-            <line key={y} x1="40" y1={y} x2="420" y2={y} stroke="var(--border-default)" strokeWidth="1" />
-          ))}
-          <path d="M60,100 L120,85 L180,72 L240,65 L300,55 L360,40 L420,30 L420,115 L60,115 Z" fill="url(#lineGrad)" />
-          <path d="M60,100 L120,85 L180,72 L240,65 L300,55 L360,40 L420,30"
-            fill="none" stroke="#F59E0B" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
-          {[60, 120, 180, 240, 300, 360].map((x, i) => (
-            <circle key={i} cx={x} cy={[100,85,72,65,55,40][i]} r="3.5" fill="#F59E0B" />
-          ))}
-          <circle cx="420" cy="30" r="5" fill="#F59E0B" stroke="white" strokeWidth="2" />
-          {['40', '20'].map((label, i) => (
-            <text key={label} x="32" y={i === 0 ? 24 : 58} textAnchor="end" fontSize="10" fill="var(--text-tertiary)" fontFamily="sans-serif">
-              {[100, 80][i]}
-            </text>
-          ))}
-        </svg>
-      </div>
-
-      {/* Summary Stats */}
-      <div className="grid grid-cols-3 gap-3 mt-4">
-        {[
-          { num: '83',  label: '평균 점수',  color: 'text-amber-500' },
-          { num: '+18', label: '2주 성장',   color: 'text-emerald-500' },
-          { num: '24',  label: '총 면접수',  color: 'text-[var(--text-primary)]' },
-        ].map(({ num, label, color }) => (
-          <div key={label} className="text-center p-3 bg-[var(--bg-subtle)] rounded-xl">
-            <div className={`text-[20px] font-extrabold ${color}`}>{num}</div>
-            <div className="text-[11px] text-[var(--text-tertiary)] mt-0.5">{label}</div>
-          </div>
-        ))}
-      </div>
-
-      {/* Weekly Activity */}
-      <div className="mt-5">
-        <div className="text-[12px] font-semibold text-[var(--text-secondary)] mb-3">이번 주 활동</div>
-        <div className="flex gap-1 items-end">
-          {WEEK_BARS.map(({ day, height, opacity }) => (
-            <div key={day} className="flex flex-col items-center gap-1 flex-1">
-              <div className={`w-full rounded-t-sm ${opacity}`} style={{ height }} />
-              <span className="text-[10px] text-[var(--text-tertiary)]">{day}</span>
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
-  )
+function scoreColor(s: number) {
+  return s >= 80 ? '#10b981' : s >= 60 ? '#f59e0b' : '#ef4444'
 }
 
 export function AnalyticsSection() {
+  const { sessions, loading, refresh } = useSessions()
+
+  if (loading) return (
+    <div className="flex items-center gap-2 justify-center h-64 text-sm text-[var(--text-secondary)]">
+      <Loader2 size={16} className="animate-spin" /> 불러오는 중...
+    </div>
+  )
+
+  if (sessions.length === 0) return (
+    <div className="p-8">
+      <div className="flex items-start justify-between mb-1">
+        <h1 className="text-2xl font-extrabold">분석 그래프</h1>
+        <button onClick={refresh} disabled={loading}
+          className="flex items-center gap-1.5 text-xs text-[var(--text-secondary)] hover:text-[var(--text-primary)] disabled:opacity-40 transition-colors">
+          <RefreshCw size={13} className={loading ? 'animate-spin' : ''} /> 새로고침
+        </button>
+      </div>
+      <p className="text-[var(--text-secondary)] text-sm">아직 완료된 면접이 없어요. 면접을 먼저 진행해보세요!</p>
+    </div>
+  )
+
+  // 점수 추이 (최근 10개)
+  const recent = [...sessions].reverse().slice(-10)
+  const maxScore = 100
+  const chartW = 480, chartH = 140, padL = 32, padR = 16, padT = 10, padB = 28
+
+  const points = recent.map((s, i) => {
+    const x = padL + (i / Math.max(recent.length - 1, 1)) * (chartW - padL - padR)
+    const y = padT + (1 - (s.score ?? 0) / maxScore) * (chartH - padT - padB)
+    return { x, y, score: s.score ?? 0, label: TRACK_LABEL[s.track] ?? s.track }
+  })
+  const polyline = points.map((p) => `${p.x},${p.y}`).join(' ')
+
+  // 트랙별 평균
+  const trackGroups: Record<string, number[]> = {}
+  sessions.forEach((s) => {
+    if (s.score == null) return
+    if (!trackGroups[s.track]) trackGroups[s.track] = []
+    trackGroups[s.track].push(s.score)
+  })
+
+  // 주간 활동 (최근 7일)
+  const today = new Date()
+  const weekDays = Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(today)
+    d.setDate(today.getDate() - (6 - i))
+    return d
+  })
+  const weekCounts = weekDays.map((d) =>
+    sessions.filter((s) => {
+      if (!s.createdAt) return false
+      const sd = s.createdAt.toDate()
+      return sd.getFullYear() === d.getFullYear() &&
+             sd.getMonth() === d.getMonth() &&
+             sd.getDate() === d.getDate()
+    }).length
+  )
+  const maxCount = Math.max(...weekCounts, 1)
+
+  // 전체 통계
+  const scores = sessions.map((s) => s.score ?? 0).filter(Boolean)
+  const totalAvg = avg(scores)
+  const totalSessions = sessions.length
+  const totalMins = sessions.reduce((a, s) => a + (s.duration ?? 0), 0)
+
   return (
-    <section id="analytics" className="py-16 bg-[var(--bg-base)]">
-      <div className="max-w-[1160px] mx-auto px-6">
-        <div className="mb-8">
-          <p className="text-xs font-bold uppercase tracking-widest text-amber-500 mb-3">성장 분석</p>
-          <h2 className="text-[28px] font-bold mb-3">내 면접 역량 그래프</h2>
-          <p className="text-[15px] text-[var(--text-secondary)]">카테고리별 점수와 시간에 따른 성장 추이를 시각화합니다.</p>
+    <div className="p-8">
+      <div className="flex items-start justify-between mb-1">
+        <h1 className="text-2xl font-extrabold">분석 그래프</h1>
+        <button onClick={refresh} disabled={loading}
+          className="flex items-center gap-1.5 text-xs text-[var(--text-secondary)] hover:text-[var(--text-primary)] disabled:opacity-40 transition-colors">
+          <RefreshCw size={13} className={loading ? 'animate-spin' : ''} /> 새로고침
+        </button>
+      </div>
+      <p className="text-[var(--text-secondary)] text-sm mb-6">지금까지의 면접 성과를 한눈에 확인하세요.</p>
+
+      {/* 요약 카드 */}
+      <div className="grid grid-cols-3 gap-4 mb-6">
+        {[
+          { label: '총 면접 횟수', value: `${totalSessions}회` },
+          { label: '평균 점수', value: `${totalAvg}점`, color: scoreColor(totalAvg) },
+          { label: '총 연습 시간', value: `${totalMins}분` },
+        ].map(({ label, value, color }) => (
+          <div key={label} className="p-4 rounded-2xl border border-[var(--border-default)] bg-[var(--bg-surface)]">
+            <p className="text-xs text-[var(--text-tertiary)] mb-1">{label}</p>
+            <p className="text-2xl font-extrabold" style={color ? { color } : {}}>{value}</p>
+          </div>
+        ))}
+      </div>
+
+      {/* 점수 추이 */}
+      <div className="p-5 rounded-2xl border border-[var(--border-default)] bg-[var(--bg-surface)] mb-4">
+        <p className="text-[15px] font-semibold mb-3">점수 추이</p>
+        <svg viewBox={`0 0 ${chartW} ${chartH}`} className="w-full">
+          {/* 가이드라인 */}
+          {[0, 25, 50, 75, 100].map((v) => {
+            const y = padT + (1 - v / 100) * (chartH - padT - padB)
+            return (
+              <g key={v}>
+                <line x1={padL} y1={y} x2={chartW - padR} y2={y} stroke="var(--border-default)" strokeWidth="1" strokeDasharray="4,4" />
+                <text x={padL - 4} y={y + 4} textAnchor="end" fontSize="9" fill="var(--text-tertiary)">{v}</text>
+              </g>
+            )
+          })}
+          {/* 라인 */}
+          {points.length > 1 && <polyline points={polyline} fill="none" stroke="#f59e0b" strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round" />}
+          {/* 점 */}
+          {points.map((p, i) => (
+            <g key={i}>
+              <circle cx={p.x} cy={p.y} r="5" fill={scoreColor(p.score)} stroke="white" strokeWidth="2" />
+              <text x={p.x} y={chartH - 6} textAnchor="middle" fontSize="9" fill="var(--text-tertiary)">{i + 1}</text>
+            </g>
+          ))}
+        </svg>
+      </div>
+
+      <div className="grid grid-cols-2 gap-4">
+        {/* 트랙별 평균 */}
+        <div className="p-5 rounded-2xl border border-[var(--border-default)] bg-[var(--bg-surface)]">
+          <p className="text-[15px] font-semibold mb-4">트랙별 평균 점수</p>
+          <div className="flex flex-col gap-3">
+            {Object.entries(trackGroups).map(([track, scores]) => {
+              const a = avg(scores)
+              return (
+                <div key={track}>
+                  <div className="flex justify-between text-xs mb-1">
+                    <span className="text-[var(--text-secondary)]">{TRACK_LABEL[track] ?? track}</span>
+                    <span className="font-bold" style={{ color: scoreColor(a) }}>{a}점</span>
+                  </div>
+                  <div className="h-2 rounded-full bg-[var(--border-default)] overflow-hidden">
+                    <div className="h-full rounded-full transition-all" style={{ width: `${a}%`, backgroundColor: scoreColor(a) }} />
+                  </div>
+                </div>
+              )
+            })}
+          </div>
         </div>
-        <div className="grid grid-cols-2 max-md:grid-cols-1 gap-6">
-          <RadarChart />
-          <GrowthChart />
+
+        {/* 주간 활동 */}
+        <div className="p-5 rounded-2xl border border-[var(--border-default)] bg-[var(--bg-surface)]">
+          <p className="text-[15px] font-semibold mb-4">주간 활동</p>
+          <div className="flex items-end justify-between gap-1.5 h-24">
+            {weekDays.map((d, i) => {
+              const h = weekCounts[i] === 0 ? 4 : Math.round((weekCounts[i] / maxCount) * 80) + 8
+              return (
+                <div key={i} className="flex flex-col items-center gap-1 flex-1">
+                  <div
+                    className="w-full rounded-t-lg transition-all"
+                    style={{
+                      height: `${h}px`,
+                      backgroundColor: weekCounts[i] > 0 ? '#f59e0b' : 'var(--border-default)',
+                    }}
+                  />
+                  <span className="text-[9px] text-[var(--text-tertiary)]">
+                    {['일','월','화','수','목','금','토'][d.getDay()]}
+                  </span>
+                </div>
+              )
+            })}
+          </div>
         </div>
       </div>
-    </section>
+    </div>
   )
 }
