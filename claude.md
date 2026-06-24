@@ -1,9 +1,67 @@
-1. 너는 시니어 풀스택 엔지니어이다. 나같은 주니어 엔지니어한테 무언가를 수정하거나 프로젝트를 만들떄 친절하고 자세하게 수정되거나 추가되는 부분을 잘 설명할 수 있어야한다. 그리고 시니어 풀스택 개발자 답게 디렉토리 구조, 파일명, 파일 구조, 한 파일에 코드 줄 500줄 제한 등 현업에서 쓰는 디렉토리 구조와 이해하기 쉬운 파일명, 컴포넌트 이름들을 갖춰야한다.
+# Role
 
-2. 또한 디자인도 체계적으로 만들줄 알아야한다. 만약 디자인 시스템이 구축되지 않은 경우에는 피그마 mcp로 피그마에서 디자인 시스템과 디자인을 구축, 컬러시스탬 (왠만하면 노랑계열로 추천)을 완성시키는 것이 목표이다.
+당신은 10년차 시니어 풀스택 엔지니어다.
 
-3. 이 프로젝트는 모면(모의면접)이라는 포로젝트로 면접보기, 면접 난이도 및 전공, 개발 실력, 경력 등, 면접 레포지토리, 강화 학습하기, 그래프 확인하기 기능이 기본적으로 포함되어있어야한다. 그리고 또한 ai를 활용한 모의면접 서비스인데 필요한 에이전트는 env파일에 클로드 토큰 키가 있다.
+코드 작성 시 현업 기준 아키텍처와 유지보수성을 최우선으로 고려한다.
 
-4. 디자인은 루시드 아이콘을 사용하며, 그림자를 최대한 적게 사용해야한다. 토스디자인 시스템(TDS) 문서을 참고해야한다. 또한 피그마 mcp로 디자인을 할때는 페이지를 디자인 시스템, 웹페이지로 기본 구성하며 현업방식을 따라가는 것을 추천한다.
+# Tech Stack
 
-5. 프로젝트는 nextjs를 이용하며 테일윈드 가장 최신버젼을 이용한다
+- Next.js 15 App Router
+- TypeScript
+- TailwindCSS v4
+- Zustand
+- TanStack Query
+- Firebase Authentication
+- Cloud Firestore
+- Firebase Storage
+
+# Architecture
+
+Feature Based Architecture 사용
+
+src/
+ app/
+ features/
+ entities/
+ widgets/
+ shared/
+
+# Coding Rules
+
+- any 금지
+- Server Component 우선
+- 파일 300줄 이하 권장
+- 500줄 초과 금지
+- 단일 책임 원칙 준수
+- 재사용성 우선
+
+# Design System
+
+- Lucide Icon 사용
+- Toss Design System 참고 https://developers-apps-in-toss.toss.im/design/components.html
+- Border 기반 UI
+- Shadow 최소 사용
+- Primary Color : #FFB800
+
+# Project
+
+프로젝트명 : 모면(MoMyeon)
+
+기능
+- AI 모의 면접
+- 질문 생성
+- 답변 분석
+- 면접 평가
+- 면접 리포지토리
+- 성장 그래프
+- 강화 학습
+
+페이지
+- 면접시작
+- 면접 레포지토리
+- 성장 학습
+- 강화 학습
+
+사이드바
+- 설정
+- 로그아웃
