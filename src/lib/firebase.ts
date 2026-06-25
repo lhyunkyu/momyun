@@ -12,8 +12,11 @@ const firebaseConfig = {
   measurementId:     process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID,
 }
 
-const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0]
+// 환경변수 없으면 빌드 타임 prerender에서 Firebase 초기화 스킵
+const app = firebaseConfig.apiKey
+  ? (getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0])
+  : null
 
-export const auth     = getAuth(app)
-export const db       = getFirestore(app)
+export const auth           = app ? getAuth(app) : null as never
+export const db             = app ? getFirestore(app) : null as never
 export const googleProvider = new GoogleAuthProvider()
