@@ -104,3 +104,11 @@ export async function getSessions(userId: string): Promise<InterviewRecord[]> {
     .map((d) => ({ id: d.id, ...d.data() } as InterviewRecord))
     .filter((r) => r.status === 'done')
 }
+
+/** 전체 세션 목록 조회 (draft + done 모두) */
+export async function getAllSessions(userId: string): Promise<InterviewRecord[]> {
+  const ref  = collection(db, 'users', userId, 'sessions')
+  const q    = query(ref, orderBy('createdAt', 'desc'))
+  const snap = await getDocs(q)
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() } as InterviewRecord))
+}

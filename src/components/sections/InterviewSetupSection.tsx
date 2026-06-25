@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { Send, Loader2, RotateCcw } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { cn } from '@/lib/cn'
@@ -9,6 +10,7 @@ import {
   createDraftSession,
   updateSessionMessages,
   finalizeSession,
+  getSession,
   EvaluationResult,
 } from '@/lib/firestore'
 import { InterviewResultSection } from '@/components/sections/InterviewResultSection'
@@ -51,6 +53,7 @@ function ChipGroup({ label, options, value, onChange }: {
 export function InterviewSetupSection() {
   const { user } = useAuth()
   const { refresh } = useSessions()
+  const searchParams = useSearchParams()
   const [config, setConfig] = useState<Config>({
     track: 'frontend', experience: 'intern',
     difficulty: 'medium', type: 'technical', questionCount: 5, followUp: true,
@@ -60,6 +63,26 @@ export function InterviewSetupSection() {
     const stored = localStorage.getItem(FOLLOW_UP_KEY)
     if (stored !== null) setConfig((c) => ({ ...c, followUp: stored === 'true' }))
   }, [])
+
+  // 이어하기: URL ?resume=sessionId
+  useEffect(() => {
+    const resumeId = searchParams.get('resume')
+    if (!resumeId || !user) return
+    getSession(user.uid, resumeId).then((session) => {
+      if (!session) return
+      setConfig({
+        track: session.track, experience: session.experience,
+        difficulty: session.difficulty, type: session.type,
+        questionCount: session.questionCount,
+        followUp: localStorage.getItem(FOLLOW_UP_KEY) !== 'false',
+      })
+      setMessages(session.messages as Message[])
+      setSessionId(resumeId)
+      sessionIdRef.current = resumeId
+      setStartTime(Date.now())
+      setPhase('chat')
+    })
+  }, [searchParams, user])
   const [phase, setPhase]           = useState<'setup' | 'chat' | 'evaluating' | 'result'>('setup')
   const [messages, setMessages]     = useState<Message[]>([])
   const [input, setInput]           = useState('')
